@@ -1,0 +1,14 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+data="$1"
+mkdir -p "$data/bin"
+export PATH="$data/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+if [[ -x "$data/bin/codex" ]]; then exit 0; fi
+installer="$(mktemp "${TMPDIR:-/tmp}/pdf-room-codex.XXXXXXXX")"
+trap 'rm -f "$installer"' EXIT
+/usr/bin/curl --proto '=https' --tlsv1.2 --retry 2 -fsSL \
+    https://chatgpt.com/codex/install.sh -o "$installer"
+CODEX_HOME="$data/codex-package" CODEX_INSTALL_DIR="$data/bin" CODEX_NON_INTERACTIVE=1 \
+    /bin/sh "$installer"
+"$data/bin/codex" --version

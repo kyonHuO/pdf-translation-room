@@ -1,0 +1,29 @@
+#!/bin/bash
+# Dedicated environment for PDF翻訳室. No administrator privileges needed.
+set -euo pipefail
+umask 077
+resources="$(cd "$(dirname "$0")" && pwd)"
+data="$1"
+mkdir -p "$data/bin"
+export UV_NO_MODIFY_PATH=1 UV_UNMANAGED_INSTALL="$data/bin"
+export UV_CACHE_DIR="$data/cache" UV_PYTHON_INSTALL_DIR="$data/python"
+export PATH="$data/bin:/usr/bin:/bin:/usr/sbin:/sbin"
+export UV_NO_CONFIG=1
+installer="$(mktemp -d "${TMPDIR:-/tmp}/pdf-room-setup.XXXXXXXX")"
+trap 'rm -rf "$installer"' EXIT
+if [[ ! -x "$data/bin/uv" ]]; then
+    /usr/bin/curl --proto '=https' --tlsv1.2 --retry 2 -fsSL         https://astral.sh/uv/0.13.7/install.sh -o "$installer/uv.sh"
+    /bin/sh "$installer/uv.sh"
+fi
+uv="$data/bin/uv"
+if [[ ! -x "$data/runtime/bin/python" ]]; then
+    "$uv" venv --python 3.12 --managed-python "$data/runtime"
+fi
+requirements="$resources/runtime-requirements.txt"
+if [[ "$(/usr/bin/uname -m)" == "x86_64" ]]; then
+    requirements="$resources/runtime-requirements-intel.txt"
+fi
+"$uv" pip sync --python "$data/runtime/bin/python" --only-binary :all: "$requirements"
+"$data/runtime/bin/python" -B -c 'import fastapi, uvicorn, pymupdf; from pdf2zh_next.high_level import do_translate_async_stream'
+"$data/runtime/bin/python" -B "$resources/prepare_assets.py"
+touch "$data/runtime-ready-1"

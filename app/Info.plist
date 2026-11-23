@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>PDF翻訳室 Mark.Ⅱ</string>
+	<key>CFBundleExecutable</key>
+	<string>launch</string>
+	<key>CFBundleIconFile</key>
+	<string>PDFRoom.icns</string>
+	<key>CFBundleIdentifier</key>
+	<string>local.pdftranslation.room.mac2</string>
+	<key>CFBundleName</key>
+	<string>PDF翻訳室 Mark.Ⅱ</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>2.0</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+</dict>
+</plist>

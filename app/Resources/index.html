@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f6f5ef">
+  <title>PDF翻訳室 Mark.Ⅱ</title>
+  <link rel="stylesheet" href="/style.css">
+  <script defer src="/app.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="bar-content">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">訳</span>PDF翻訳室 Mark.Ⅱ</div>
+      <div class="top-actions">
+        <span class="engine"><span aria-hidden="true"></span><span id="engine-label">Codex</span></span>
+        <button type="button" id="settings" class="quiet">翻訳設定</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="intro" aria-labelledby="headline">
+      <div class="intro-copy">
+        <h1 id="headline">英語のPDFを、<br><em>日本語で読む。</em></h1>
+        <p>元のレイアウトをできるだけ保ちながら、<br class="desktop">日本語版と見開きの対訳版を作れます。</p>
+      </div>
+      <div class="preview" aria-hidden="true">
+        <div class="sheet original"><span>EN</span><div class="rules"><i></i><i></i><i></i></div><div class="figure"><b></b><b></b><b></b><b></b></div><div class="rules bottom-rules"><i></i><i></i></div></div>
+        <div class="sheet translated"><span>日本語</span><div class="rules"><i></i><i></i><i></i></div><div class="figure"><b></b><b></b><b></b><b></b></div><div class="rules bottom-rules"><i></i><i></i></div></div>
+      </div>
+    </section>
+
+    <section class="workspace" aria-label="PDFを翻訳">
+      <div id="account" class="account">
+        <h2>ChatGPTアカウントを接続</h2>
+        <p id="account-status" role="status">Codexのログイン状態を確認しています。</p>
+        <button type="button" id="install-codex" class="primary" hidden>Codexをインストール</button>
+        <button type="button" id="api-alternative" class="quiet">互換APIキーを使う</button>
+        <button type="button" id="signin" class="primary" hidden>ChatGPTでログイン<span aria-hidden="true">↗</span></button>
+      </div>
+      <div id="provider-panel" class="provider-panel" hidden>
+        <div class="results-heading">
+          <h2>翻訳設定</h2>
+          <button type="button" id="settings-close" class="quiet">閉じる</button>
+        </div>
+        <div class="mode-picker" role="group" aria-label="翻訳先">
+          <button type="button" id="mode-codex" aria-pressed="false">Codex</button>
+          <button type="button" id="mode-api" aria-pressed="false">OpenAI互換API</button>
+        </div>
+        <div id="codex-config" hidden>
+          <p>ChatGPTアカウントのCodex利用枠を使います。</p>
+          <button type="button" id="use-codex" class="primary">Codexを使う</button>
+        </div>
+        <form id="api-config" hidden>
+          <label for="base-url">Base URL</label>
+          <input id="base-url" type="url" placeholder="https://api.openai.com/v1" autocomplete="off" required>
+          <label for="model">モデル名</label>
+          <input id="model" type="text" placeholder="接続先が指定するモデル名" maxlength="200" autocomplete="off" required>
+          <label for="api-key">APIキー</label>
+          <input id="api-key" type="password" maxlength="4096" autocomplete="off" required>
+          <p>設定したAPIに本文を送ります。キーはアプリを閉じるまで保持します。</p>
+          <button type="submit" id="use-api" class="primary">互換APIを使う</button>
+        </form>
+      </div>
+      <div id="dropzone" class="dropzone" hidden>
+        <input type="file" id="file" accept=".pdf,application/pdf" hidden>
+        <div class="upload-mark" aria-hidden="true"><span>↑</span></div>
+        <h2>PDFをここにドロップ</h2>
+        <p>文字を選択できるPDF · 50 MBまで</p>
+        <button type="button" id="choose" class="primary">PDFを選ぶ<span aria-hidden="true">↗</span></button>
+      </div>
+
+      <div id="selection" class="selection" hidden>
+        <div class="file-row">
+          <span class="file-type" aria-hidden="true">PDF</span>
+          <div class="file-info"><strong id="filename"></strong><small id="filesize"></small></div>
+          <button type="button" id="replace" class="quiet">選び直す</button>
+        </div>
+        <button type="button" id="start" class="primary">翻訳する<span aria-hidden="true">→</span></button>
+      </div>
+
+      <div id="job-panel" class="job-panel" hidden>
+        <div class="progress-title"><strong id="stage" role="status"></strong><span id="percent"></span></div>
+        <progress id="progress" max="100"></progress>
+        <div class="progress-foot"><small id="count"></small><button type="button" id="cancel" class="quiet">中止する</button></div>
+      </div>
+
+      <div id="results" class="results" hidden>
+        <div class="results-heading"><h2>翻訳が完了しました</h2><button type="button" id="again" class="quiet">別のPDFを翻訳</button></div>
+        <div class="downloads">
+          <a id="mono" class="download"><span><strong>日本語版</strong><small>日本語のページだけ</small></span><span aria-hidden="true">↓</span></a>
+          <a id="dual" class="download"><span><strong>対訳版</strong><small>原文と日本語を左右に表示</small></span><span aria-hidden="true">↓</span></a>
+        </div>
+      </div>
+
+      <p id="error" class="error" role="alert" hidden></p>
+    </section>
+    <p id="privacy" class="privacy">翻訳する本文はOpenAIに送られ、ログイン済みのCodex利用枠を使います。</p>
+  </main>
+</body>
+</html>
