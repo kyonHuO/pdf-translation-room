@@ -11,7 +11,11 @@ bundle="$package/$name.app"
 mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" dist
 
 cp app/Info.plist "$bundle/Contents/Info.plist"
-cp -p app/Resources/* "$bundle/Contents/Resources/"
+for resource in app/Resources/*; do
+    if [[ -f "$resource" ]]; then
+        cp -p "$resource" "$bundle/Contents/Resources/"
+    fi
+done
 cp 最初にお読みください.txt "$package/"
 
 for architecture in arm64 x86_64; do

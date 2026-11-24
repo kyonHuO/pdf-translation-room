@@ -35,16 +35,21 @@ PLACEHOLDER = re.compile(r"\{v\d+\}|<style id='\d+'>|</style>")
 def translate(source):
     if not source.strip():
         return source
-    codex = os.environ.get("PDF_ROOM_CODEX_BIN") or which("codex")
+    codex = os.environ.get("PDF_ROOM_CODEX_BIN") or which("codex.exe" if os.name == "nt" else "codex")
     if not codex and os.access(BUNDLED_CODEX, os.X_OK):
         codex = str(BUNDLED_CODEX)
     if not codex:
         raise RuntimeError("Codex CLI not found. Install Codex and sign in with ChatGPT.")
 
     # Use the CLI's saved ChatGPT login without inheriting API keys or app tools.
+    environment_names = (
+        "HOME", "USER", "LOGNAME", "PATH", "TMPDIR", "LANG", "LC_ALL",
+        "USERPROFILE", "APPDATA", "LOCALAPPDATA", "SYSTEMROOT", "TEMP", "TMP",
+        "COMSPEC", "WINDIR", "PROGRAMDATA", "PROGRAMFILES", "PATHEXT",
+    )
     environment = {
         name: os.environ[name]
-        for name in ("HOME", "USER", "LOGNAME", "PATH", "TMPDIR", "LANG", "LC_ALL")
+        for name in environment_names
         if name in os.environ
     }
     with TemporaryDirectory(prefix="pdf2zh-codex-") as directory:
@@ -62,6 +67,8 @@ def translate(source):
             "--output-schema", str(schema), "--output-last-message", str(result),
             INSTRUCTIONS,
         ]
+        if os.name == "nt":
+            command[2:2] = ["-c", "features.prefer_mxc=true"]
         completed = subprocess.run(
             command,
             input=json.dumps({"text": source}, ensure_ascii=False),
@@ -70,6 +77,7 @@ def translate(source):
             encoding="utf-8",
             capture_output=True,
             timeout=110,
+            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
         )
         if completed.returncode:
             diagnostic = (completed.stderr + completed.stdout).lower()

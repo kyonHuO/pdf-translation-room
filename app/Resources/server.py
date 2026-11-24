@@ -10,7 +10,9 @@ import secrets
 from shutil import which
 import signal
 import socket
+import subprocess
 import sys
+import threading
 from tempfile import TemporaryDirectory
 from time import monotonic
 from urllib.parse import unquote, urlsplit
@@ -24,7 +26,7 @@ from typing import Literal
 import uvicorn
 
 RESOURCES = Path(__file__).resolve().parent
-PORT = 18647
+PORT = int(os.environ.get("PDF_ROOM_PORT", "18647"))
 HOST = f"127.0.0.1:{PORT}"
 ADDRESS = f"http://{HOST}"
 MAX_BYTES = 50 * 1024 * 1024
@@ -86,6 +88,11 @@ install_failed = False
 
 
 def codex_command():
+    if os.name == "nt":
+        standard = Path(os.environ.get("LOCALAPPDATA", Path.home())) / "Programs/OpenAI/Codex/bin/codex.exe"
+        return os.environ.get("PDF_ROOM_CODEX_BIN") or which("codex.exe") or (
+            str(standard) if standard.is_file() else None
+        )
     bundled = Path("/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex")
     return os.environ.get("PDF_ROOM_CODEX_BIN") or which("codex") or (
         str(bundled) if os.access(bundled, os.X_OK) else None
@@ -104,6 +111,7 @@ async def account_state():
         process = await asyncio.create_subprocess_exec(
             binary, "login", "status", stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+            **managed_process_options(),
         )
         try:
             output, _ = await asyncio.wait_for(process.communicate(), timeout=10)
@@ -231,6 +239,20 @@ async def set_provider(form: ProviderInput):
     return provider.public()
 
 
+def codex_installer(folder):
+    if os.name == "nt":
+        return ("powershell.exe", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+                "-File", str(RESOURCES / "windows/install-codex.ps1"), str(folder))
+    return (str(RESOURCES / "install-codex"), str(folder))
+
+
+def managed_process_options():
+    if os.name == "nt":
+        # Prompts and progress are represented by the app window.
+        return {"creationflags": subprocess.CREATE_NO_WINDOW}
+    return {"start_new_session": True}
+
+
 async def install_codex():
     global install_failed
     folder = Path(os.environ.get("PDF_ROOM_DATA", Path.home() / "Library/Application Support/PDF翻訳室"))
@@ -240,8 +262,7 @@ async def install_codex():
     try:
         with (folder / "codex-install.log").open("wb") as log:
             process = await asyncio.create_subprocess_exec(
-                str(RESOURCES / "install-codex"), str(folder),
-                stdout=log, stderr=log, start_new_session=True,
+                *codex_installer(folder), stdout=log, stderr=log, **managed_process_options(),
             )
             install_failed = await process.wait() != 0
     except asyncio.CancelledError:
@@ -279,6 +300,7 @@ async def login():
         login_process = await asyncio.create_subprocess_exec(
             codex_command(), "login", stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+            **managed_process_options(),
         )
     except OSError:
         raise HTTPException(503, "Codexを起動できません。アプリを開き直してください。") from None
@@ -296,6 +318,23 @@ def stage_label(stage):
 
 
 async def stop(process):
+    if os.name == "nt":
+        try:
+            command = await asyncio.create_subprocess_exec(
+                "taskkill.exe", "/PID", str(process.pid), "/T", "/F",
+                stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+                **managed_process_options(),
+            )
+            await command.wait()
+        except OSError:
+            pass
+        if process.returncode is None:
+            try:
+                process.kill()
+            except ProcessLookupError:
+                pass
+        await process.wait()
+        return
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except ProcessLookupError:
@@ -347,7 +386,7 @@ async def run_job(job):
         with log_path.open("wb") as log:
             job.process = process = await asyncio.create_subprocess_exec(
                 *WORKER_COMMAND, str(job.folder / "source.pdf"), cwd=job.folder,
-                stdout=asyncio.subprocess.PIPE, stderr=log, start_new_session=True, env=environment,
+                stdout=asyncio.subprocess.PIPE, stderr=log, env=environment, **managed_process_options(),
             )
             if job.state == "cancelling":
                 await stop(process)
@@ -463,7 +502,8 @@ async def download(identifier: str, mode: str):
 
 def main():
     with socket.socket() as listener:
-        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        reuse_mode = socket.SO_EXCLUSIVEADDRUSE if os.name == "nt" else socket.SO_REUSEADDR
+        listener.setsockopt(socket.SOL_SOCKET, reuse_mode, 1)
         try:
             listener.bind(("127.0.0.1", PORT))
         except OSError:
@@ -472,7 +512,14 @@ def main():
                     raise RuntimeError("PDF翻訳室のポートは使用中です。")
             return
         listener.listen()
-        uvicorn.Server(uvicorn.Config(app, log_level="warning")).run(sockets=[listener])
+        service = uvicorn.Server(uvicorn.Config(app, log_level="warning"))
+        if "--watch-parent" in sys.argv:
+            def watch_parent():
+                sys.stdin.buffer.read()
+                service.should_exit = True
+
+            threading.Thread(target=watch_parent, daemon=True).start()
+        service.run(sockets=[listener])
 
 
 if __name__ == "__main__":

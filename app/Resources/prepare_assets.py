@@ -1,6 +1,8 @@
 from concurrent.futures import ThreadPoolExecutor
+import os
 from pathlib import Path
-from subprocess import run
+from shutil import which
+import subprocess
 from tempfile import TemporaryDirectory
 
 from tiktoken import encoding_for_model
@@ -29,14 +31,18 @@ def download(job):
     else:
         upstream_urls = FONT_URL_BY_UPSTREAM if category == "fonts" else CMAP_URL_BY_UPSTREAM
         urls = [upstream_urls[source](name) for source in ("github", "huggingface", "modelscope")]
+    curl = which("curl.exe" if os.name == "nt" else "curl")
+    if not curl:
+        raise RuntimeError("curl is required to download PDF assets")
     with TemporaryDirectory(dir=destination.parent) as temp_dir:
         temp_path = Path(temp_dir) / name
         for url in urls:
-            result = run([
-                "/usr/bin/curl", "--proto", "=https", "--tlsv1.2", "-fsSL",
+            result = subprocess.run([
+                curl, "--proto", "=https", "--tlsv1.2", "-fsSL",
                 "--max-time", "100", "--connect-timeout", "10",
                 "--output", str(temp_path), url
-            ], capture_output=True, text=True)
+            ], capture_output=True, text=True,
+               creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0)
             if result.returncode == 0 and verify_file(temp_path, expected_digest):
                 temp_path.replace(destination)
                 print(f"Fetched {category}/{name}", flush=True)
